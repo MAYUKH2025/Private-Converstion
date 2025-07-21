@@ -4,27 +4,15 @@ from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes,
 import logging
 import json
 import os
+import asyncio
 from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
-import time
 
-# === UPTIME KEEP ALIVE SETUP ===
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "✅ YuxtorBot is alive!"
-
-def run():
-    app.run(host='0.0.0.0', port=10000)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# === LOAD ENV VARIABLES ===
+# Load environment variables from .env file
 load_dotenv()
+
+# === CONFIGURATION ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
@@ -33,13 +21,28 @@ MESSAGE_MAP_FILE = "message_map.json"
 USER_IDS_FILE = "user_ids.json"
 BLOCKED_USERS_FILE = "blocked_users.json"
 
-# === LOGGER ===
+# === LOGGER SETUP ===
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# === LOAD/SAVE FUNCTIONS ===
+# === FLASK KEEP-ALIVE SERVER ===
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def flask_home():
+    return "✅ YuxtorBot is alive!"
+
+def run_flask():
+    flask_app.run(host='0.0.0.0', port=10000)
+
+def start_keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True  # Daemon thread will exit when main thread exits
+    t.start()
+
+# === DATA PERSISTENCE FUNCTIONS ===
 def load_json_set(filename):
     try:
         if os.path.exists(filename):
@@ -80,10 +83,10 @@ blocked_users = load_json_set(BLOCKED_USERS_FILE)
 # === COMMAND HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🎬 *Welcome to YuxtorBot Official!*\n\n"
+        "🎬 Welcome to YuxtorBot Official!\n\n"
         "If you're looking for any movie, feel free to request it here.\n"
         "We will try our best to provide it for you. 🍿\n\n"
-        "This Bot is Created By *YuxtorBot Official*.",
+        "This Bot is Created By YuxtorBot Official.",
         parse_mode="Markdown")
 
 async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,12 +104,12 @@ async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sent = await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=("📩 *New Message Received!*\n"
-                 "```\n"
+            text=("📩 New Message Received!\n"
+                 "\n"
                  f"From    : {user.first_name}\n"
                  f"Username: {username}\n"
                  f"UserID  : {user.id}\n"
-                 "```\n"
+                 "\n"
                  f"{msg.text or '[Non-text message]'}"),
             parse_mode="Markdown")
         message_map[sent.message_id] = user.id
@@ -116,8 +119,7 @@ async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
-        await update.message.reply_text(
-            "⚠️ Please reply to a user's message to respond.")
+        await update.message.reply_text("⚠ Please reply to a user's message to respond.")
         return
 
     original_msg_id = update.message.reply_to_message.message_id
@@ -125,26 +127,21 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if original_msg_id in message_map:
         user_id = message_map[original_msg_id]
         if user_id in blocked_users:
-            await update.message.reply_text(
-                "🚫 This user is currently blocked. Cannot send message.")
+            await update.message.reply_text("🚫 This user is currently blocked. Cannot send message.")
             return
         try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=update.message.text
-            )
+            await context.bot.send_message(chat_id=user_id, text=update.message.text)
+            logging.info(f"Admin replied to user {user_id}")
         except Exception as e:
             await update.message.reply_text(f"❌ Failed to send message: {e}")
     else:
-        await update.message.reply_text(
-            "❌ Could not find user from this reply.")
+        await update.message.reply_text("❌ Could not find user from this reply.")
 
 async def sendall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    await update.message.reply_text(
-        "📝 Please enter the message to send to all users...")
+    await update.message.reply_text("📝 Please enter the message to send to all users...")
     context.user_data["awaiting_broadcast"] = True
 
 async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,11 +160,11 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await context.bot.send_message(chat_id=uid, text=text)
                 count += 1
             except Exception as e:
-                logging.warning(f"Could not send to {uid}: {e}")
+                logging.warning(f"Could not send broadcast message to {uid}: {e}")
 
         await update.message.reply_text(f"✅ Message sent to {count} users.")
     else:
-        await update.message.reply_text("⚠️ Please reply or use /sendall.")
+        await update.message.reply_text("⚠ Please reply to a user's message to respond or use /sendall to broadcast.")
 
 async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -178,11 +175,11 @@ async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             uid = int(context.args[0])
             blocked_users.add(uid)
             save_json_set(blocked_users, BLOCKED_USERS_FILE)
-            await update.message.reply_text(f"🚫 User {uid} blocked.")
-        except:
-            await update.message.reply_text("❗ Invalid user ID.")
+            await update.message.reply_text(f"🚫 User {uid} has been blocked.")
+        except ValueError:
+            await update.message.reply_text("❗ Invalid user ID. Please provide a numeric user ID.")
     else:
-        await update.message.reply_text("ℹ️ Usage: /block <user_id>")
+        await update.message.reply_text("ℹ Usage: /block <user_id>")
 
 async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -192,15 +189,15 @@ async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             uid = int(context.args[0])
             if uid in blocked_users:
-                blocked_users.remove(uid)
+                blocked_users.discard(uid)
                 save_json_set(blocked_users, BLOCKED_USERS_FILE)
-                await update.message.reply_text(f"✅ User {uid} unblocked.")
+                await update.message.reply_text(f"✅ User {uid} has been unblocked.")
             else:
-                await update.message.reply_text("ℹ️ User not blocked.")
-        except:
-            await update.message.reply_text("❗ Invalid user ID.")
+                await update.message.reply_text(f"ℹ User {uid} is not blocked.")
+        except ValueError:
+            await update.message.reply_text("❗ Invalid user ID. Please provide a numeric user ID.")
     else:
-        await update.message.reply_text("ℹ️ Usage: /unblock <user_id>")
+        await update.message.reply_text("ℹ Usage: /unblock <user_id>")
 
 async def list_blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -209,31 +206,42 @@ async def list_blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not blocked_users:
         await update.message.reply_text("✅ No blocked users.")
     else:
-        await update.message.reply_text(
-            "🚫 Blocked Users:\n" + "\n".join(str(u) for u in blocked_users)
-        )
+        users = "\n".join(str(uid) for uid in blocked_users)
+        await update.message.reply_text(f"🚫 Blocked Users:\n{users}")
 
-# === MAIN ===
+async def post_init(application):
+    """Ensure clean startup by deleting any existing webhook"""
+    await application.bot.delete_webhook(drop_pending_updates=True)
+    logging.info("✅ Webhook deleted - Ready for polling")
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors gracefully"""
+    error = str(context.error)
+    logging.error(f"Update {update} caused error {error}")
+    
+    if "Conflict" in error:
+        logging.warning("⚠ Another bot instance detected. Cleaning up...")
+        await context.bot.delete_webhook()
+        await asyncio.sleep(5)  # Wait before retrying
+
 def main():
-    # Start the keep-alive server
-    keep_alive()
+    # Start keep-alive server
+    start_keep_alive()
     
-    # Wait a moment for the server to start
-    time.sleep(2)
-    
-    # Initialize the bot with error handlers
+    # Build application with proper initialization
     application = ApplicationBuilder() \
         .token(BOT_TOKEN) \
-        .post_init(register_handlers) \
+        .post_init(post_init) \
         .build()
 
-    # Add handlers
+    # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("sendall", sendall_command))
     application.add_handler(CommandHandler("block", block_user))
     application.add_handler(CommandHandler("unblock", unblock_user))
     application.add_handler(CommandHandler("blocked", list_blocked))
 
+    # Add message handlers
     application.add_handler(
         MessageHandler(
             filters.TEXT & filters.User(user_id=ADMIN_ID) & filters.REPLY,
@@ -250,30 +258,13 @@ def main():
     # Add error handler
     application.add_error_handler(error_handler)
 
-    logging.info("✅ Bot is running...")
-    
-    # Clear any existing webhook to prevent conflicts
-    application.bot.delete_webhook()
-    
-    # Start polling with allowed updates
+    # Start the bot
+    logging.info("🚀 Starting bot...")
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True
+        drop_pending_updates=True,
+        close_loop=False  # Important for Render.com
     )
-
-async def register_handlers(application):
-    """Register handlers after initialization"""
-    pass
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """Log errors and handle conflicts gracefully"""
-    logging.error(f"Update {update} caused error {context.error}")
-    
-    if "Conflict: terminated by other getUpdates request" in str(context.error):
-        logging.warning("Another bot instance detected. Trying to recover...")
-        await context.bot.delete_webhook()
-        time.sleep(5)
-        return
 
 if __name__ == "__main__":
     main()
