@@ -10,5 +10,4 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_ID
-        sync: fals
-        
+        sync: false
