@@ -51,6 +51,7 @@ def save_json_set(data_set, filename):
 def load_message_map():
     if os.path.exists(MESSAGE_MAP_FILE):
         with open(MESSAGE_MAP_FILE, "r") as f:
+            # keys should be int because message IDs are ints
             return {int(k): v for k, v in json.load(f).items()}
     return {}
 
@@ -70,7 +71,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "If you're looking for any movie, feel free to request it here.\n"
         "We will try our best to provide it for you. 🍿\n\n"
         "This Bot is Created By *YuxtorBot Official*.",
-        parse_mode="Markdown")
+        parse_mode="Markdown"
+    )
 
 async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -87,14 +89,17 @@ async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sent = await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=("📩 *New Message Received!*\n"
-                  "```\n"
-                  f"From    : {user.first_name}\n"
-                  f"Username: {username}\n"
-                  f"UserID  : {user.id}\n"
-                  "```\n"
-                  f"{msg.text or '[Non-text message]'}"),
-            parse_mode="Markdown")
+            text=(
+                "📩 *New Message Received!*\n"
+                "```\n"
+                f"From    : {user.first_name}\n"
+                f"Username: {username}\n"
+                f"UserID  : {user.id}\n"
+                "```\n"
+                f"{msg.text or '[Non-text message]'}"
+            ),
+            parse_mode="Markdown"
+        )
         message_map[sent.message_id] = user.id
         save_message_map(message_map)
     except Exception as e:
@@ -193,19 +198,23 @@ async def list_blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("sendall", sendall_command))
     app.add_handler(CommandHandler("block", block_user))
     app.add_handler(CommandHandler("unblock", unblock_user))
     app.add_handler(CommandHandler("blocked", list_blocked))
 
+    # Admin replies and messages
     app.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_ID) & filters.REPLY, admin_reply))
     app.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_ID) & ~filters.REPLY, handle_admin_input))
+
+    # User messages
     app.add_handler(MessageHandler(filters.TEXT & ~filters.User(ADMIN_ID), user_message))
 
     print("✅ Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
-    keep_alive()
+    keep_alive()  # start Flask keep-alive server in thread
     main()
