@@ -6,17 +6,15 @@ import json
 import os
 import asyncio
 from dotenv import load_dotenv
-from flask import Flask
-from threading import Thread
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 # === CONFIGURATION ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
-# === FILES FOR PERSISTENCE ===
+# === PERSISTENCE FILES ===
 MESSAGE_MAP_FILE = "message_map.json"
 USER_IDS_FILE = "user_ids.json"
 BLOCKED_USERS_FILE = "blocked_users.json"
@@ -26,21 +24,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-
-# === FLASK KEEP-ALIVE SERVER ===
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
-def flask_home():
-    return "✅ YuxtorBot is alive!"
-
-def run_flask():
-    flask_app.run(host='0.0.0.0', port=10000)
-
-def start_keep_alive():
-    t = Thread(target=run_flask)
-    t.daemon = True  # Daemon thread will exit when main thread exits
-    t.start()
 
 # === DATA PERSISTENCE FUNCTIONS ===
 def load_json_set(filename):
@@ -225,9 +208,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(5)  # Wait before retrying
 
 def main():
-    # Start keep-alive server
-    start_keep_alive()
-    
     # Build application with proper initialization
     application = ApplicationBuilder() \
         .token(BOT_TOKEN) \
@@ -263,7 +243,7 @@ def main():
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True,
-        close_loop=False  # Important for Render.com
+        close_loop=False
     )
 
 if __name__ == "__main__":
