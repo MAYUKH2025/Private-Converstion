@@ -1,3 +1,6 @@
 .env
 __pycache__/
 *.pyc
+message_map.json
+user_ids.json
+blocked_users.json
