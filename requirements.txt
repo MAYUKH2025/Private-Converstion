@@ -1,5 +1,5 @@
-pip uninstall python-telegram-bot
-pip install python-telegram-bot==20.8
+uninstall python-telegram-bot
+install python-telegram-bot==20.8
 python-dotenv
 Flask
 httpx
