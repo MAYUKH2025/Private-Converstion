@@ -17,7 +17,7 @@ def home():
     return "✅ YuxtorBot is alive!"
 
 def run():
-    app.run(host='0.0.0.0', port=10000)  # Changed port to 10000 for Render compatibility
+    app.run(host='0.0.0.0', port=10000)
 
 def keep_alive():
     t = Thread(target=run)
@@ -34,8 +34,10 @@ USER_IDS_FILE = "user_ids.json"
 BLOCKED_USERS_FILE = "blocked_users.json"
 
 # === LOGGER ===
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-                   level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 # === LOAD/SAVE FUNCTIONS ===
 def load_json_set(filename):
@@ -127,8 +129,10 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🚫 This user is currently blocked. Cannot send message.")
             return
         try:
-            await context.bot.send_message(chat_id=user_id,
-                                         text=update.message.text)
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=update.message.text
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Failed to send message: {e}")
     else:
@@ -143,8 +147,7 @@ async def sendall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📝 Please enter the message to send to all users...")
     context.user_data["awaiting_broadcast"] = True
 
-async def handle_admin_input(update: Update,
-                           context: ContextTypes.DEFAULT_TYPE):
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
@@ -206,8 +209,9 @@ async def list_blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not blocked_users:
         await update.message.reply_text("✅ No blocked users.")
     else:
-        await update.message.reply_text("🚫 Blocked Users:\n" + "\n".join(
-            str(u) for u in blocked_users))
+        await update.message.reply_text(
+            "🚫 Blocked Users:\n" + "\n".join(str(u) for u in blocked_users)
+        )
 
 # === MAIN ===
 def main():
@@ -217,30 +221,59 @@ def main():
     # Wait a moment for the server to start
     time.sleep(2)
     
-    # Initialize the bot
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Initialize the bot with error handlers
+    application = ApplicationBuilder() \
+        .token(BOT_TOKEN) \
+        .post_init(register_handlers) \
+        .build()
 
-    # Handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("sendall", sendall_command))
-    app.add_handler(CommandHandler("block", block_user))
-    app.add_handler(CommandHandler("unblock", unblock_user))
-    app.add_handler(CommandHandler("blocked", list_blocked))
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("sendall", sendall_command))
+    application.add_handler(CommandHandler("block", block_user))
+    application.add_handler(CommandHandler("unblock", unblock_user))
+    application.add_handler(CommandHandler("blocked", list_blocked))
 
-    app.add_handler(
+    application.add_handler(
         MessageHandler(
             filters.TEXT & filters.User(user_id=ADMIN_ID) & filters.REPLY,
             admin_reply))
-    app.add_handler(
+    application.add_handler(
         MessageHandler(
             filters.TEXT & filters.User(user_id=ADMIN_ID) & ~filters.REPLY,
             handle_admin_input))
-    app.add_handler(
-        MessageHandler(filters.TEXT & (~filters.User(user_id=ADMIN_ID)),
-                     user_message))
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & (~filters.User(user_id=ADMIN_ID)),
+            user_message))
+
+    # Add error handler
+    application.add_error_handler(error_handler)
 
     logging.info("✅ Bot is running...")
-    app.run_polling()
+    
+    # Clear any existing webhook to prevent conflicts
+    application.bot.delete_webhook()
+    
+    # Start polling with allowed updates
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
+
+async def register_handlers(application):
+    """Register handlers after initialization"""
+    pass
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Log errors and handle conflicts gracefully"""
+    logging.error(f"Update {update} caused error {context.error}")
+    
+    if "Conflict: terminated by other getUpdates request" in str(context.error):
+        logging.warning("Another bot instance detected. Trying to recover...")
+        await context.bot.delete_webhook()
+        time.sleep(5)
+        return
 
 if __name__ == "__main__":
     main()
