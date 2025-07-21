@@ -19,8 +19,10 @@ USER_IDS_FILE = "user_ids.json"
 BLOCKED_USERS_FILE = "blocked_users.json"
 
 # Logger setup
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 # === Persistence Functions ===
 def load_json_set(filename):
@@ -128,14 +130,13 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             try:
                 await context.bot.send_message(chat_id=uid, text=text)
                 count += 1
-            except:
+            except Exception as e:
+                logging.warning(f"Failed to send to {uid}: {e}")
                 continue
 
         await update.message.reply_text(f"✅ Broadcast sent to {count} users.")
     else:
-        await update.message.reply_text(
-            "⚠ Use /sendall or reply to a user's message."
-        )
+        await update.message.reply_text("⚠ Use /sendall or reply to a user's message.")
 
 async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -190,7 +191,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_ID) & ~filters.REPLY, handle_admin_input))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.User(ADMIN_ID), user_message))
 
-    print("✅ Bot is running...")
+    logging.info("✅ Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
