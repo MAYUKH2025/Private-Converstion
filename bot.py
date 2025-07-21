@@ -1,30 +1,11 @@
 from telegram import Update
-from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes,
-                          MessageHandler, filters)
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes,
+    MessageHandler, filters)
 import logging
 import json
 import os
 from dotenv import load_dotenv
-from flask import Flask  # For uptime
-from threading import Thread  # For keeping alive
-
-# === UPTIME KEEP ALIVE SETUP ===
-app = Flask('')
-
-
-@app.route('/')
-def home():
-    return "✅ YuxtorBot is alive!"
-
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
 
 # === LOAD ENV VARIABLES ===
 load_dotenv()
@@ -144,8 +125,7 @@ async def sendall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_broadcast"] = True
 
 
-async def handle_admin_input(update: Update,
-                             context: ContextTypes.DEFAULT_TYPE):
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
@@ -242,5 +222,4 @@ def main():
 
 
 if __name__ == "__main__":
-    keep_alive()  # 👈 Important for UptimeRobot
     main()
