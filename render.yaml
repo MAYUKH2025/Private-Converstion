@@ -2,6 +2,7 @@ services:
   - type: web
     name: movie-conversation-bot
     env: python
+    pythonVersion: "3.11"            # specify Python 3.11 to avoid compatibility issues
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     plan: free
