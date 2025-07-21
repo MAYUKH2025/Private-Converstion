@@ -193,19 +193,19 @@ async def list_blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"🚫 Blocked Users:\n{users}")
 
 async def post_init(application):
-    """Ensure clean startup by deleting any existing webhook"""
+    """Ensure clean startup"""
     await application.bot.delete_webhook(drop_pending_updates=True)
-    logging.info("✅ Webhook deleted - Ready for polling")
+    logging.info("✅ Bot initialized and ready")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors gracefully"""
     error = str(context.error)
-    logging.error(f"Update {update} caused error {error}")
+    logging.error(f"Error: {error}")
     
     if "Conflict" in error:
         logging.warning("⚠ Another bot instance detected. Cleaning up...")
         await context.bot.delete_webhook()
-        await asyncio.sleep(5)  # Wait before retrying
+        await asyncio.sleep(5)
 
 def main():
     # Build application with proper initialization
