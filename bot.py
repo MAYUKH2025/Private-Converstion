@@ -1,15 +1,12 @@
-import os
-import json
-import logging
-from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
+    ApplicationBuilder, CommandHandler, ContextTypes,
+    MessageHandler, filters
 )
+import logging
+import json
+import os
+from dotenv import load_dotenv
 
 # === Load environment variables ===
 load_dotenv()
@@ -23,8 +20,8 @@ BLOCKED_USERS_FILE = "blocked_users.json"
 
 # === Logger setup ===
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 
 # === Load/Save helper functions ===
@@ -41,7 +38,6 @@ def save_json_set(data_set, filename):
 def load_message_map():
     if os.path.exists(MESSAGE_MAP_FILE):
         with open(MESSAGE_MAP_FILE, "r") as f:
-            # keys are string in json, convert to int
             return {int(k): v for k, v in json.load(f).items()}
     return {}
 
@@ -61,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "If you're looking for any movie, feel free to request it here.\n"
         "We will try our best to provide it for you. 🍿\n\n"
         "This Bot is Created By *YuxtorBot Official*.",
-        parse_mode="Markdown",
+        parse_mode="Markdown"
     )
 
 async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,7 +84,7 @@ async def user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "```\n"
                 f"{msg.text or '[Non-text message]'}"
             ),
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
         message_map[sent.message_id] = user.id
         save_message_map(message_map)
@@ -196,17 +192,15 @@ def main():
     app.add_handler(CommandHandler("unblock", unblock_user))
     app.add_handler(CommandHandler("blocked", list_blocked))
 
-    # Admin replies to users
+    # Admin replies to user messages (must reply)
     app.add_handler(
         MessageHandler(filters.TEXT & filters.User(user_id=ADMIN_ID) & filters.REPLY, admin_reply)
     )
-
-    # Admin input for broadcast
+    # Admin input for broadcast message (not reply)
     app.add_handler(
         MessageHandler(filters.TEXT & filters.User(user_id=ADMIN_ID) & ~filters.REPLY, handle_admin_input)
     )
-
-    # User messages to admin
+    # User messages handler
     app.add_handler(
         MessageHandler(filters.TEXT & (~filters.User(user_id=ADMIN_ID)), user_message)
     )
